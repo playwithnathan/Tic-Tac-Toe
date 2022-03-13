@@ -4,107 +4,102 @@ using UnityEngine;
 using UnityEngine.UI;
 
 public class TacTacToe : MonoBehaviour {
-    public Transform[] slots = new Transform[9];
+    public Button[] slots = new Button[9];
 
-    public Image UIX;
-    public Image UIO;
+    public Image UIBackground;
+    public Image UIGrid;
 
-    public Text UIWinsX;
-    public Text UIWinsO;
-    public Text UIWinText;
+    public Image XHighlight;
+    public Image OHighlight;
+
+    public Text UIX;
+    public Text UIO;
+
+    public Text UIXWins;
+    public Text UIOWins;
+
+    public Color background;
+    public Color grid;
+    public Color highlighted;
+    public Color XColor;
+    public Color OColor;
 
     bool turn = false;
     int turnNumber = 0;
 
+    bool[] claimedX = new bool[9];
+    bool[] claimedO = new bool[9];
+
     int winsX = 0;
     int winsO = 0;
 
-    void Update() {
-        // If the mouse button is not pressed down then ignore
-        if(!Input.GetMouseButtonDown(0)) return;
-
-        foreach(Transform slot in slots) {
-            Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            Vector3 slotPos = slot.position;
-
-            if((mousePos.x < slotPos.x + 1.5f && mousePos.x > slotPos.x - 1.5f) &&
-            (mousePos.y < slotPos.y + 1.5f && mousePos.y > slotPos.y - 1.5f)) {
-                TakeTurn(slot);
-                break;
-            }
-        }
+    private void Start() {
+        foreach(Button slot in slots)
+            slot.onClick.AddListener(() => OnClick(slot));
+        ResetBoard();
     }
 
-    void TakeTurn(Transform slot) {
-        // Reset game win text
-        UIWinText.text = "";
+    private void Update() {
+        // Set big X and O to their proper colors
+        UIX.color = XColor;
+        UIO.color = OColor;
 
-        // Get x and o objects
-        GameObject slotO = slot.GetChild(0).gameObject;
-        GameObject slotX = slot.GetChild(1).gameObject;
-
-        // If x or o object is already active then ignore this slot
-        if(slotX.activeSelf) return;
-        if(slotO.activeSelf) return;
-
-        if(turn) {
-            // O
-            slotO.gameObject.SetActive(true);
-
-            // Change UI text for whos turn it is
-            UIO.gameObject.SetActive(false);
-            UIX.gameObject.SetActive(true);
-
-            // Check if O has won
-            if(WinCheck()) {
-                winsO += 1;
-                UIWinText.text = "O Won!";
-
-                ResetBoard();
-                return;
-            }
-
-            // Set the turn to X
-            turn = false;
-        } else {
-            // X
-            slotX.gameObject.SetActive(true);
-            
-            // Change UI text for whos turn it is
-            UIX.gameObject.SetActive(false);
-            UIO.gameObject.SetActive(true);
-
-            // Check if X has won
-            if(WinCheck()) {
-                winsX += 1;
-                UIWinText.text = "X Won!";
-
-                ResetBoard();
-                return;
-            }
-
-            // Set the turn to O
-            turn = true;
+        // Set all X's to their proper colors
+        for(int i = 0; i < slots.Length; i++) {
+            slots[i].image.color = background;
+            Text text = slots[i].GetComponentInChildren<Text>();
+            if(claimedX[i]) text.color = XColor;
+            if(claimedO[i]) text.color = OColor;
         }
 
+        // Set highlight color for whos turn it is
+        if(turn) {
+            XHighlight.color = background;
+            OHighlight.color = highlighted;
+        } else {
+            OHighlight.color = background;
+            XHighlight.color = highlighted;
+        }
+
+        // Set background to proper color
+        UIBackground.color = background;
+
+        // Set grid to proper color
+        UIGrid.color = grid;
+    }
+
+    void OnClick(Button slot) {
+        bool[] claimed = turn ? claimedO : claimedX;
+        slot.GetComponentInChildren<Text>().text = turn ? "O" : "X";
+
+        // Make slot uninteractable
+        slot.interactable = false;
+
+        // Add to claimed spots
+        claimed.SetValue(true, int.Parse(slot.name.Split(' ')[1]));
+
+        // Check if O has won
+        if(WinCheck()) {
+            winsO += turn ? 1 : 0;
+            winsX += !turn ? 1 : 0;
+
+            ResetBoard();
+            return;
+        }
+
+        // Update the turn
+        turn = turn ? false : true;
+
+        // Update the total number of turns taken
         turnNumber++;
 
-        if(turnNumber >= 9) {
-            UIWinText.text = "Draw!";
-            ResetBoard();
-        }
+        // If there has been 9 turns taken then reset the board, its a draw
+        if(turnNumber >= 9) ResetBoard();
     }
 
     bool WinCheck() {
-        bool[] claimed = new bool[9];
-        int child = turn ? 0 : 1;
-
-        // Create array of claimed spaces
-        for(int i = 0; i < slots.Length; i++) {
-            bool activeChild = slots[i].GetChild(child).gameObject.activeSelf;
-            if(activeChild) claimed[i] = true;
-            else claimed[i] = false;
-        }
+        // Claimed list is based upon whos turn it is
+        bool[] claimed = turn ? claimedO : claimedX;
 
         // Horizontal
         if(claimed[0] && claimed[1] && claimed[2]) return true;
@@ -127,18 +122,20 @@ public class TacTacToe : MonoBehaviour {
         turn = false;
         turnNumber = 0;
 
-        UIO.gameObject.SetActive(false);
-        UIX.gameObject.SetActive(true);
+        // Update wins
+        UIXWins.text = winsX.ToString();
+        UIOWins.text = winsO.ToString();
 
-        UIWinsX.text = winsX.ToString();
-        UIWinsO.text = winsO.ToString();
+        // Set all claimed spots to false
+        for(int i = 0; i < 9; i++) {
+            claimedX.SetValue(false, i);
+            claimedO.SetValue(false, i);
+        }
 
-        foreach(Transform slot in slots) {
-            GameObject slotO = slot.GetChild(0).gameObject;
-            GameObject slotX = slot.GetChild(1).gameObject;
-
-            slotO.SetActive(false);
-            slotX.SetActive(false);
+        // Set all slots to be interactable and empty
+        foreach(Button slot in slots) {
+            slot.interactable = true;
+            slot.GetComponentInChildren<Text>().text = "";
         }
     }
 }
